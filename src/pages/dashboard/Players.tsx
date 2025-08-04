@@ -560,7 +560,7 @@ player.play();`,
             {/* Player */}
             <div className={`w-full h-full ${isFullscreen ? 'p-0' : 'p-8 pt-20'}`}>
               <UniversalVideoPlayer
-                src={previewVideo?.url}
+                src={previewVideo ? getVideoUrl(previewVideo.url) : undefined}
                 title={previewVideo?.nome}
                 isLive={previewVideo?.id === 0}
                 autoplay={true}

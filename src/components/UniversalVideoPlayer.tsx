@@ -100,10 +100,6 @@ const UniversalVideoPlayer: React.FC<UniversalVideoPlayerProps> = ({
     return `/content/${cleanPath}`;
   };
 
-  // Função para detectar se é um stream HLS/M3U8
-  const isHLSStream = (url: string) => {
-    return url.includes('.m3u8') || url.includes('/vod/') || url.includes('/live/') || url.includes('/samhost/');
-  };
   // Função para construir URL externa do Wowza (baseada no PHP)
   const buildExternalWowzaUrl = (src: string) => {
     if (!src) return '';
@@ -118,17 +114,6 @@ const UniversalVideoPlayer: React.FC<UniversalVideoPlayerProps> = ({
     const isProduction = window.location.hostname !== 'localhost';
     const wowzaHost = isProduction ? 'samhost.wcore.com.br' : '51.222.156.223';
     
-    // Se é HLS, usar porta 1935
-    if (isHLSStream(src)) {
-      if (src.startsWith('/content/')) {
-        return `http://${wowzaHost}:1935${src.replace('/content', '')}`;
-      } else if (!src.startsWith('http')) {
-        return `http://${wowzaHost}:1935/${src}`;
-      }
-      return src;
-    }
-    
-    // Para VOD, usar porta 6980
     if (src.startsWith('/content/')) {
       return `http://${wowzaHost}:6980${src}`;
     } else if (!src.startsWith('http')) {
@@ -339,20 +324,10 @@ const UniversalVideoPlayer: React.FC<UniversalVideoPlayerProps> = ({
           maxMaxBufferLength: isLive ? 30 : 120,
           liveSyncDurationCount: isLive ? 3 : 5,
           liveMaxLatencyDurationCount: isLive ? 5 : 10,
-          // Configurações específicas para VOD
-          startLevel: -1, // Auto-select quality
-          capLevelToPlayerSize: true,
-          // Configurações de retry para melhor estabilidade
-          manifestLoadingTimeOut: 10000,
-          manifestLoadingMaxRetry: 4,
-          levelLoadingTimeOut: 10000,
-          levelLoadingMaxRetry: 4,
-          fragLoadingTimeOut: 20000,
-          fragLoadingMaxRetry: 6,
           debug: false,
           xhrSetup: (xhr, url) => {
             xhr.withCredentials = false;
-            xhr.timeout = src.includes('/api/videos-ssh/') ? 30000 : 15000; // Mais tempo para SSH e VOD
+            xhr.timeout = src.includes('/api/videos-ssh/') ? 30000 : 10000; // Mais tempo para SSH
           }
         });
 
@@ -368,10 +343,6 @@ const UniversalVideoPlayer: React.FC<UniversalVideoPlayerProps> = ({
           }
         });
 
-        hls.on(Hls.Events.LEVEL_LOADED, () => {
-          console.log('✅ Level HLS carregado');
-          setConnectionStatus('connected');
-        });
         hls.on(Hls.Events.ERROR, (event, data) => {
           console.error('HLS Error:', data);
           if (data.fatal) {
@@ -387,10 +358,6 @@ const UniversalVideoPlayer: React.FC<UniversalVideoPlayerProps> = ({
               } else {
                 errorMsg = 'Erro ao acessar vídeo do servidor via SSH';
               }
-            } else if (data.details?.includes('MANIFEST_LOAD_ERROR')) {
-              errorMsg = 'Erro ao carregar manifest HLS. Verifique se o vídeo existe.';
-            } else if (data.details?.includes('FRAG_LOAD_ERROR')) {
-              errorMsg = 'Erro ao carregar fragmentos do vídeo. Tente novamente.';
             }
 
             setError(errorMsg);
@@ -556,14 +523,28 @@ const UniversalVideoPlayer: React.FC<UniversalVideoPlayerProps> = ({
 
   const handleDownload = () => {
     if (src && !isLive) {
-      // Usar URL externa do Wowza para melhor performance (baseado no PHP)
-      const externalUrl = buildExternalWowzaUrl(src);
-      const fallbackUrl = buildVideoUrl(src);
+      // Para download, sempre usar URL direta do Wowza (porta 6980 para VOD)
+      const isProduction = window.location.hostname !== 'localhost';
+      const wowzaHost = isProduction ? 'samhost.wcore.com.br' : '51.222.156.223';
+      
+      let downloadUrl = src;
+      
+      // Se é HLS, converter para URL de download direto
+      if (src.includes('.m3u8')) {
+        // Extrair caminho do vídeo e construir URL de download
+        const hlsPath = src.replace(/.*\/vod\//, '').replace('/playlist.m3u8', '');
+        downloadUrl = `http://${wowzaHost}:6980/content/${hlsPath}.mp4`;
+      } else if (src.includes('/api/videos-ssh/')) {
+        // Para SSH, usar URL do proxy
+        downloadUrl = src;
+      } else {
+        downloadUrl = buildExternalWowzaUrl(src);
+      }
       
       // Tentar URL externa primeiro, fallback para proxy
-      const newWindow = window.open(externalUrl, '_blank');
+      const newWindow = window.open(downloadUrl, '_blank');
       if (!newWindow) {
-        window.open(fallbackUrl, '_blank');
+        window.open(buildVideoUrl(src), '_blank');
       }
     }
   };

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 import { useStream } from '../../context/StreamContext';
+import UniversalVideoPlayer from '../../components/UniversalVideoPlayer';
 
 interface Platform {
   id: string;
