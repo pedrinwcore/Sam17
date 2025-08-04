@@ -322,7 +322,7 @@ function ModalConfirmacao({
 }
 
 export default function GerenciarVideos() {
-  const { getToken } = useAuth();
+  const { getToken, user } = useAuth();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderSelecionada, setFolderSelecionada] = useState<Folder | null>(null);
   const [novoFolderNome, setNovoFolderNome] = useState("");
@@ -753,10 +753,46 @@ export default function GerenciarVideos() {
     setEditingVideo(null);
   };
 
+  // Função para construir URL HLS para vídeos VOD
+  const buildHLSVideoUrl = (video: Video | SSHVideo) => {
+    const userLogin = user?.email?.split('@')[0] || `user_${user?.id || 'usuario'}`;
+    
+    // Para vídeos SSH, usar URL direta
+    if ('id' in video && typeof video.id === 'string') {
+      return `/api/videos-ssh/stream/${video.id}`;
+    }
+    
+    // Para vídeos normais, tentar construir URL HLS
+    if (video.url) {
+      const cleanPath = video.url.replace(/^\/+/, '');
+      const pathParts = cleanPath.split('/');
+      
+      if (pathParts.length >= 3) {
+        const [userPath, folder, filename] = pathParts;
+        const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+        
+        // URL HLS do Wowza para VOD
+        const isProduction = window.location.hostname !== 'localhost';
+        const wowzaHost = isProduction ? 'samhost.wcore.com.br' : '51.222.156.223';
+        
+        return `http://${wowzaHost}:1935/vod/${userPath}/${folder}/${nameWithoutExt}/playlist.m3u8`;
+      }
+    }
+    
+    // Fallback para URL original
+    return buildVideoUrl(video.url || '');
+  };
+
   const abrirModalVideo = (video: Video) => {
     console.log('Abrindo modal para vídeo:', video);
     
-    setVideoModalAtual(video);
+    // Usar URL HLS para melhor compatibilidade
+    const videoWithHLS = {
+      ...video,
+      url: buildHLSVideoUrl(video)
+    };
+    
+    setVideoModalAtual(videoWithHLS);
     setPlaylistModal(null);
     setModalAberta(true);
   };
@@ -767,7 +803,7 @@ export default function GerenciarVideos() {
     const videosParaPlaylist = sshVideos.map(v => ({
       id: 0,
       nome: v.nome,
-      url: `/api/videos-ssh/stream/${v.id}`,
+      url: buildHLSVideoUrl(v),
       duracao: v.duration,
       tamanho: v.size
     }));
@@ -1150,7 +1186,7 @@ export default function GerenciarVideos() {
                             abrirModalVideo({
                               id: Number(video.id),
                               nome: video.nome,
-                              url: `/api/videos-ssh/stream/${video.id}`,
+                              url: buildHLSVideoUrl(video),
                               duracao: video.duration,
                               tamanho: video.size
                             } as Video);

@@ -247,10 +247,32 @@ const Comerciais: React.FC = () => {
   const getVideoUrl = (url: string) => {
     if (!url) return '';
     
+    // Se já é uma URL completa, usar como está
     if (url.startsWith('http')) {
       return url;
     }
     
+    // Para vídeos SSH, usar a URL diretamente
+    if (url.includes('/api/videos-ssh/')) {
+      return url;
+    }
+    
+    // Tentar construir URL HLS para melhor compatibilidade
+    const cleanPath = url.replace(/^\/+/, '');
+    const pathParts = cleanPath.split('/');
+    
+    if (pathParts.length >= 3) {
+      const [userPath, folder, filename] = pathParts;
+      const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+      
+      // URL HLS do Wowza para VOD
+      const isProduction = window.location.hostname !== 'localhost';
+      const wowzaHost = isProduction ? 'samhost.wcore.com.br' : '51.222.156.223';
+      
+      return `http://${wowzaHost}:1935/vod/${userPath}/${folder}/${nameWithoutExt}/playlist.m3u8`;
+    }
+    
+    // Fallback para URL com /content
     if (url.startsWith('/content')) {
       return url;
     } else if (url.startsWith('/')) {

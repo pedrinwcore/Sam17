@@ -89,8 +89,8 @@ const Playlists: React.FC = () => {
     }
     
     // Para vídeos SSH, usar a URL diretamente
-    if (video.url.includes('/api/videos-ssh/')) {
-      return video.url;
+    if (url.includes('/api/videos-ssh/')) {
+      return url;
     }
 
     // Para arquivos locais, sempre usar o proxy /content do backend
@@ -98,6 +98,36 @@ const Playlists: React.FC = () => {
     return `/content/${cleanPath}`;
   };
 
+  // Função para construir URL HLS para vídeos VOD
+  const buildHLSVideoUrl = (video: Video) => {
+    const { user } = useAuth();
+    const userLogin = user?.email?.split('@')[0] || `user_${user?.id || 'usuario'}`;
+    
+    if (!video.url) return '';
+    
+    // Para vídeos SSH, usar URL direta
+    if (video.url.includes('/api/videos-ssh/')) {
+      return video.url;
+    }
+    
+    // Para vídeos normais, tentar construir URL HLS
+    const cleanPath = video.url.replace(/^\/+/, '');
+    const pathParts = cleanPath.split('/');
+    
+    if (pathParts.length >= 3) {
+      const [userPath, folder, filename] = pathParts;
+      const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+      
+      // URL HLS do Wowza para VOD
+      const isProduction = window.location.hostname !== 'localhost';
+      const wowzaHost = isProduction ? 'samhost.wcore.com.br' : '51.222.156.223';
+      
+      return `http://${wowzaHost}:1935/vod/${userPath}/${folder}/${nameWithoutExt}/playlist.m3u8`;
+    }
+    
+    // Fallback para URL original
+    return buildVideoUrl(video.url);
+  };
   const carregarPlaylists = async () => {
     try {
       setStatus(null);
@@ -432,7 +462,7 @@ const Playlists: React.FC = () => {
           onClick={(e) => {
             e.stopPropagation();
             // Abrir modal do player
-            setCurrentVideoUrl(buildVideoUrl(video.url || ''));
+            setCurrentVideoUrl(buildHLSVideoUrl(video));
             setPlaylistVideosToPlay([video]);
             setPlaylistPlayerIndex(0);
             setVideoPlayerModalOpen(true);
@@ -467,7 +497,7 @@ const Playlists: React.FC = () => {
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setCurrentVideoUrl(buildVideoUrl(video.url || ''));
+              setCurrentVideoUrl(buildHLSVideoUrl(video));
               setPlaylistVideosToPlay([video]);
               setPlaylistPlayerIndex(0);
               setVideoPlayerModalOpen(true);
@@ -539,7 +569,7 @@ const Playlists: React.FC = () => {
       
       setPlaylistVideosToPlay(videos);
       setPlaylistPlayerIndex(0);
-      setCurrentVideoUrl(buildVideoUrl(videos[0].url || ''));
+      setCurrentVideoUrl(buildHLSVideoUrl(videos[0]));
       setVideoPlayerModalOpen(true);
     } catch (error) {
       console.error('Erro ao carregar playlist:', error);
@@ -551,11 +581,11 @@ const Playlists: React.FC = () => {
     if (playlistPlayerIndex < playlistVideosToPlay.length - 1) {
       const nextIndex = playlistPlayerIndex + 1;
       setPlaylistPlayerIndex(nextIndex);
-      setCurrentVideoUrl(buildVideoUrl(playlistVideosToPlay[nextIndex].url || ''));
+      setCurrentVideoUrl(buildHLSVideoUrl(playlistVideosToPlay[nextIndex]));
     } else {
       // Repetir playlist do início
       setPlaylistPlayerIndex(0);
-      setCurrentVideoUrl(buildVideoUrl(playlistVideosToPlay[0].url || ''));
+      setCurrentVideoUrl(buildHLSVideoUrl(playlistVideosToPlay[0]));
     }
   };
 
@@ -563,7 +593,7 @@ const Playlists: React.FC = () => {
     if (playlistPlayerIndex > 0) {
       const prevIndex = playlistPlayerIndex - 1;
       setPlaylistPlayerIndex(prevIndex);
-      setCurrentVideoUrl(buildVideoUrl(playlistVideosToPlay[prevIndex].url || ''));
+      setCurrentVideoUrl(buildHLSVideoUrl(playlistVideosToPlay[prevIndex]));
     }
   };
 
@@ -571,7 +601,7 @@ const Playlists: React.FC = () => {
     if (playlistPlayerIndex < playlistVideosToPlay.length - 1) {
       const nextIndex = playlistPlayerIndex + 1;
       setPlaylistPlayerIndex(nextIndex);
-      setCurrentVideoUrl(buildVideoUrl(playlistVideosToPlay[nextIndex].url || ''));
+      setCurrentVideoUrl(buildHLSVideoUrl(playlistVideosToPlay[nextIndex]));
     }
   };
 
